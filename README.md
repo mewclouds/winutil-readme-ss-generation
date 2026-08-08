@@ -2,6 +2,8 @@
 
 Automated suite to capture high-quality, DPI-aware screenshots of the WinUtil application window and generate a polished, anti-aliased diagonal theme comparison image.
 
+![WinUtil Light and Dark Theme Comparison](./winutil-light-dark-comparison.png)
+
 ## Output Artifacts
 
 The tool suite generates output PNG files:
