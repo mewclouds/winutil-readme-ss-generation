@@ -2,6 +2,8 @@
 
 Automated suite to capture high-quality, DPI-aware screenshots of the WinUtil application window and generate a polished, anti-aliased diagonal theme comparison image.
 
+> **Note**: This project is an independent proof of concept built to demonstrate screenshot and composite image automation. I do not own the rights to WinUtil or the original WinUtil repository.
+
 ![WinUtil Light and Dark Theme Comparison](./winutil-light-dark-comparison.png)
 
 ## Output Artifacts
