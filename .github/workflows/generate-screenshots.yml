@@ -15,8 +15,8 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 15
     env:
-      WINUTIL_CAPTURE_WIDTH: "2560"
-      WINUTIL_CAPTURE_HEIGHT: "1440"
+      WINUTIL_CAPTURE_WIDTH: "1920"
+      WINUTIL_CAPTURE_HEIGHT: "1080"
 
     defaults:
       run:
@@ -36,11 +36,37 @@ jobs:
       - name: Set display resolution
         run: |
           & powershell.exe -NoLogo -NoProfile -Command @'
-          Set-DisplayResolution -Width 2560 -Height 1440 -Force
+          Set-DisplayResolution `
+              -Width $env:WINUTIL_CAPTURE_WIDTH `
+              -Height $env:WINUTIL_CAPTURE_HEIGHT `
+              -Force
           '@
 
           if ($LASTEXITCODE -ne 0) {
               throw "Failed to set the runner display resolution."
+          }
+
+          Add-Type @"
+          using System.Runtime.InteropServices;
+
+          public static class ResolutionCheck {
+              [DllImport("user32.dll")]
+              public static extern int GetSystemMetrics(int index);
+          }
+          "@
+
+          $actualWidth = [ResolutionCheck]::GetSystemMetrics(0)
+          $actualHeight = [ResolutionCheck]::GetSystemMetrics(1)
+          if (
+              $actualWidth -ne [int]$env:WINUTIL_CAPTURE_WIDTH -or
+              $actualHeight -ne [int]$env:WINUTIL_CAPTURE_HEIGHT
+          ) {
+              throw (
+                  "The hosted runner rejected the requested resolution. " +
+                  "Requested: $env:WINUTIL_CAPTURE_WIDTH" +
+                  "x$env:WINUTIL_CAPTURE_HEIGHT; " +
+                  "actual: ${actualWidth}x${actualHeight}."
+              )
           }
 
       - name: Report display environment
