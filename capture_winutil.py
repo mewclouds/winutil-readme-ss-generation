@@ -177,13 +177,11 @@ def find_winutil_hwnd():
         user32.GetClassNameW(hwnd, buf_class, 256)
         class_name = buf_class.value
 
-        # HwndWrapper is the Win32 host window class created by WPF for top-level windows.
-        # It is the preferred match because it is the actual render surface.
-        # The Cascadia exclusion prevents matching Windows Terminal (the console running
-        # this script), whose title also contains "WinUtil" when launched via irm/iex.
+        # WinUtil is a WPF app so its top-level window always uses the HwndWrapper
+        # class. Requiring it here prevents false matches on any other window whose
+        # title happens to contain "winutil" (e.g. VS Code showing a file from a
+        # winutil-related directory).
         if "winutil" in title.lower() and "hwndwrapper" in class_name.lower():
-            found_dict[hwnd] = (hwnd, title, class_name, w, h, rect)
-        elif "winutil" in title.lower() and "cascadia" not in class_name.lower():
             found_dict[hwnd] = (hwnd, title, class_name, w, h, rect)
 
         return True
@@ -205,27 +203,47 @@ def find_winutil_hwnd():
     if len(found_windows) > 1:
         print(f"Warning: {len(found_windows)} WinUtil windows found, capturing the largest HwndWrapper.")
 
-    found_windows.sort(key=lambda x: (1 if "hwndwrapper" in x[2].lower() else 0, x[3] * x[4]), reverse=True)
+    found_windows.sort(key=lambda x: x[3] * x[4], reverse=True)
     best_hwnd, best_title, best_class, w, h, rect = found_windows[0]
 
-    rect_dwm = RECT()
-    # DwmGetWindowAttribute with DWMWA_EXTENDED_FRAME_BOUNDS returns the window rect
-    # in physical pixels, excluding DWM drop-shadow. If it fails (e.g. window is
-    # minimised), rect_dwm stays zeroed and the max() below falls back gracefully.
-    dwmapi.DwmGetWindowAttribute(best_hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, ctypes.byref(rect_dwm), ctypes.sizeof(rect_dwm))
+    phys_width, phys_height = get_window_capture_size(best_hwnd)
     dpi = user32.GetDpiForWindow(best_hwnd)
     scale = dpi / 96.0 if dpi > 0 else 1.0
 
-    w_dwm = rect_dwm.right - rect_dwm.left
-    h_dwm = rect_dwm.bottom - rect_dwm.top
-
-    # Take a conservative max across logical bounds, DWM bounds, and DPI-scaled dimensions
-    # so the capture size is never truncated on high-DPI displays.
-    phys_width = max(w, w_dwm, int(w * scale))
-    phys_height = max(h, h_dwm, int(h * scale))
-
-    print(f"Located HWND: {hex(best_hwnd)} | Title: '{best_title}' | DPI: {dpi} ({scale:.2f}x) | Capture Size: {phys_width}x{phys_height}")
+    print(
+        f"Located HWND: {hex(best_hwnd)} | Title: '{best_title}' | "
+        f"Class: '{best_class}' | DPI: {dpi} ({scale:.2f}x) | "
+        f"Capture Size: {phys_width}x{phys_height}"
+    )
     return best_hwnd, phys_width, phys_height
+
+
+def get_window_capture_size(hwnd):
+    """Return the current physical-pixel capture size for a window."""
+    rect = RECT()
+    if not user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+        raise RuntimeError(f"GetWindowRect failed for HWND {hex(hwnd)}")
+
+    window_width = rect.right - rect.left
+    window_height = rect.bottom - rect.top
+
+    rect_dwm = RECT()
+    dwm_result = dwmapi.DwmGetWindowAttribute(
+        hwnd,
+        DWMWA_EXTENDED_FRAME_BOUNDS,
+        ctypes.byref(rect_dwm),
+        ctypes.sizeof(rect_dwm),
+    )
+    dwm_width = rect_dwm.right - rect_dwm.left
+    dwm_height = rect_dwm.bottom - rect_dwm.top
+
+    # This module opts into Per-Monitor V2 awareness before querying either API,
+    # so both rectangles are already physical pixels and must not be DPI-scaled.
+    if dwm_result == 0 and dwm_width > 0 and dwm_height > 0:
+        return dwm_width, dwm_height
+    if window_width > 0 and window_height > 0:
+        return window_width, window_height
+    raise RuntimeError(f"Window {hex(hwnd)} has invalid bounds")
 
 def capture_window(hwnd, width, height, output_path):
     """Capture specified HWND directly using PrintWindow with PW_RENDERFULLCONTENT."""

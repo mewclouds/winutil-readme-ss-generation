@@ -16,9 +16,9 @@ The tool suite generates output PNG files:
 ## Requirements
 
 - **Administrator Terminal**: Must run from an **Elevated PowerShell / Terminal session (Run as administrator)**. WinUtil runs elevated, so Win32 `PrintWindow` calls require administrative privileges to bypass Windows User Interface Privilege Isolation (UIPI).
-- **Python 3 & Pillow**: Managed via `uv` or system Python with `Pillow`:
+- **Python 3, Pillow, and pywinauto**: Managed via `uv` or system Python:
    ```bash
-   uv run --with pillow python generate_all.py
+   uv run --with pillow --with pywinauto python automate_winutil.py
    ```
 
 ## How to Run & Reproduce
@@ -28,14 +28,20 @@ The tool suite generates output PNG files:
    ```powershell
    cd <path-to-this-repo>
    ```
-- Run the interactive generator:
+- Run the automated generator to select and capture both themes, then build the
+  comparison image:
+   ```powershell
+   uv run --with pillow --with pywinauto python automate_winutil.py
+   ```
+- Or run the interactive generator:
    ```powershell
    uv run --with pillow python generate_all.py
    ```
 - Follow the prompts:
    - Switch WinUtil to **Dark Mode**, then press `Enter`.
    - Switch WinUtil to **Light Mode** (without moving or resizing the window), then press `Enter`.
-- The script automatically handles HWND lookup, DPI physical scaling, shadow margin trimming, diagonal compositing, and 2pt border framing.
+- The scripts handle HWND lookup, physical-pixel sizing, shadow margin trimming,
+  diagonal compositing, and 2pt border framing.
 
 ## Architecture & Capture Details
 

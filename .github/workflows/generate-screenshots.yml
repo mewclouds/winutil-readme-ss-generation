@@ -1,0 +1,127 @@
+name: Generate WinUtil screenshots
+
+on:
+  push:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: winutil-screenshots-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          version: "0.12.0"
+          python-version: "3.13"
+          enable-cache: true
+
+      - name: Report display environment
+        run: |
+          Add-Type @"
+          using System.Runtime.InteropServices;
+
+          public static class DisplayInfo {
+              [DllImport("user32.dll")]
+              public static extern int GetSystemMetrics(int index);
+          }
+          "@
+
+          $width = [DisplayInfo]::GetSystemMetrics(0)
+          $height = [DisplayInfo]::GetSystemMetrics(1)
+          $sessionId = [Diagnostics.Process]::GetCurrentProcess().SessionId
+
+          Write-Host "Resolution: ${width}x${height}"
+          Write-Host "Session ID: $sessionId"
+          Write-Host "User: $env:USERNAME"
+
+      - name: Launch WinUtil
+        run: |
+          $command = 'irm https://christitus.com/win | iex'
+          $bytes = [Text.Encoding]::Unicode.GetBytes($command)
+          $encodedCommand = [Convert]::ToBase64String($bytes)
+
+          $process = Start-Process powershell.exe -ArgumentList @(
+              "-NoLogo",
+              "-NoProfile",
+              "-ExecutionPolicy", "Bypass",
+              "-EncodedCommand", $encodedCommand
+          ) -PassThru
+
+          "WINUTIL_HOST_PID=$($process.Id)" |
+              Out-File $env:GITHUB_ENV -Append -Encoding utf8
+
+          $deadline = (Get-Date).AddSeconds(90)
+          do {
+              Start-Sleep -Seconds 2
+              $window = Get-Process |
+                  Where-Object { $_.MainWindowTitle -like "WinUtil*" } |
+                  Select-Object -First 1
+          } until ($window -or (Get-Date) -ge $deadline)
+
+          if (-not $window) {
+              throw "WinUtil did not expose a window within 90 seconds."
+          }
+
+          Write-Host "WinUtil HWND: $($window.MainWindowHandle)"
+          Write-Host "WinUtil title: $($window.MainWindowTitle)"
+
+      - name: Generate screenshots
+        run: |
+          & uv run `
+              --python 3.13 `
+              --with pywinauto `
+              --with pillow `
+              python automate_winutil.py 2>&1 |
+              Tee-Object -FilePath capture.log
+
+          if ($LASTEXITCODE -ne 0) {
+              throw "Screenshot automation exited with code $LASTEXITCODE."
+          }
+
+      - name: Inspect UIA on failure
+        if: failure()
+        continue-on-error: true
+        run: |
+          uv run `
+              --python 3.13 `
+              --with pywinauto `
+              --with pillow `
+              python inspect_winutil.py
+
+      - name: Upload screenshots and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: winutil-screenshots-${{ github.run_number }}
+          path: |
+            winutil-dark.png
+            winutil-dark-framed.png
+            winutil-light.png
+            winutil-light-framed.png
+            winutil-light-dark-comparison.png
+            capture.log
+            inspect_output.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Close WinUtil
+        if: always()
+        run: |
+          Get-Process |
+              Where-Object { $_.MainWindowTitle -like "WinUtil*" } |
+              Stop-Process -Force -ErrorAction SilentlyContinue
