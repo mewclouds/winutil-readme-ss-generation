@@ -79,7 +79,8 @@ between captures.
 ## GitHub Actions Proof of Concept
 
 The [`Generate WinUtil screenshots`](./.github/workflows/generate-screenshots.yml)
-workflow runs on pushes to `master` and:
+workflow is started manually from the repository's **Actions** tab with **Run
+workflow**. It checks out `master` and:
 
 1. Starts a `windows-latest` hosted runner.
 2. Changes its virtual display from 1024x768 to 1920x1080 and verifies the result.
