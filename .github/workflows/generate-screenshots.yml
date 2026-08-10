@@ -2,9 +2,12 @@ name: Generate WinUtil screenshots
 
 on:
   push:
+    branches:
+      - master
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
 
 concurrency:
   group: winutil-screenshots-${{ github.ref }}
@@ -143,6 +146,23 @@ jobs:
               throw "Screenshot automation exited with code $LASTEXITCODE."
           }
 
+      - name: Create screenshot update pull request
+        uses: peter-evans/create-pull-request@v8.1.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          add-paths: winutil-light-dark-comparison.png
+          base: master
+          branch: automation/update-winutil-screenshot
+          delete-branch: true
+          commit-message: "docs: update WinUtil comparison screenshot"
+          author: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
+          committer: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
+          title: "docs: update WinUtil comparison screenshot"
+          body: |
+            Regenerates the WinUtil light/dark comparison from the current stable WinUtil build.
+
+            Source workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
       - name: Inspect UIA on failure
         if: failure()
         continue-on-error: true
@@ -159,10 +179,6 @@ jobs:
         with:
           name: winutil-screenshots-${{ github.run_number }}
           path: |
-            winutil-dark.png
-            winutil-dark-framed.png
-            winutil-light.png
-            winutil-light-framed.png
             winutil-light-dark-comparison.png
             capture.log
             inspect_output.txt

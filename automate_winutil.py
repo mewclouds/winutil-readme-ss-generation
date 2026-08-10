@@ -1,14 +1,15 @@
 """Automate the WinUtil Tweaks screenshot proof of concept.
 
-The script selects Tweaks, captures explicit Dark and Light themes, and generates
-the framed and diagonal composite images. WINUTIL_CAPTURE_WIDTH and
-WINUTIL_CAPTURE_HEIGHT request a fixed output size. WINUTIL_HWND is an internal
-CI override used to target an already validated hosted-runner window.
+The script selects Tweaks, captures explicit Dark and Light themes to temporary
+files, and persists only the diagonal composite image. WINUTIL_CAPTURE_WIDTH and
+WINUTIL_CAPTURE_HEIGHT request a fixed output size. WINUTIL_HWND is an internal CI
+override used to target an already validated hosted-runner window.
 
 Local use requires elevation matching WinUtil because PrintWindow and UI
 Automation cannot cross a higher-integrity UIPI boundary.
 """
 import os
+import tempfile
 import time
 from PIL import ImageStat
 from pywinauto.application import Application
@@ -160,10 +161,8 @@ def maximize_window(hwnd):
 
 
 def main():
-    out_dir   = os.path.dirname(os.path.abspath(__file__))
-    dark_png  = os.path.join(out_dir, "winutil-dark.png")
-    light_png = os.path.join(out_dir, "winutil-light.png")
-    comp_png  = os.path.join(out_dir, "winutil-light-dark-comparison.png")
+    out_dir = os.path.dirname(os.path.abspath(__file__))
+    comp_png = os.path.join(out_dir, "winutil-light-dark-comparison.png")
 
     # The shared lookup requires WinUtil's WPF HwndWrapper class, so editor and
     # terminal titles containing "winutil" cannot become automation targets.
@@ -190,36 +189,36 @@ def main():
         )
         w, h = resize_window(hwnd, *fixed_capture_size)
 
-    print("Capturing dark mode...")
-    capture_theme(hwnd, w, h, dark_png, expected_dark=True)
+    with tempfile.TemporaryDirectory(prefix="winutil-capture-") as capture_dir:
+        dark_png = os.path.join(capture_dir, "winutil-dark.png")
+        light_png = os.path.join(capture_dir, "winutil-light.png")
 
-    if fixed_capture_size:
-        # Theme controls at the right edge would be outside the hosted runner's
-        # physical desktop while the oversized capture layout is active.
-        print("Restoring visible viewport for theme controls...")
-        maximize_window(hwnd)
+        print("Capturing dark mode...")
+        capture_theme(hwnd, w, h, dark_png, expected_dark=True)
 
-    print("Selecting light mode...")
-    set_theme(hwnd, "Light")
+        if fixed_capture_size:
+            # Theme controls at the right edge would be outside the hosted runner's
+            # physical desktop while the oversized capture layout is active.
+            print("Restoring visible viewport for theme controls...")
+            maximize_window(hwnd)
 
-    if fixed_capture_size:
-        print(
-            f"Resizing WinUtil to {fixed_capture_size[0]}x{fixed_capture_size[1]} "
-            "for capture..."
-        )
-        w, h = resize_window(hwnd, *fixed_capture_size)
+        print("Selecting light mode...")
+        set_theme(hwnd, "Light")
 
-    print("Capturing light mode...")
-    capture_theme(hwnd, w, h, light_png, expected_dark=False)
+        if fixed_capture_size:
+            print(
+                f"Resizing WinUtil to {fixed_capture_size[0]}x{fixed_capture_size[1]} "
+                "for capture..."
+            )
+            w, h = resize_window(hwnd, *fixed_capture_size)
 
-    print("Generating composite...")
-    dark_framed, light_framed = process_and_composite(dark_png, light_png, comp_png)
+        print("Capturing light mode...")
+        capture_theme(hwnd, w, h, light_png, expected_dark=False)
+
+        print("Generating composite...")
+        process_and_composite(dark_png, light_png, comp_png)
 
     print("\nGenerated files:")
-    print(f"  Dark Screenshot:       {dark_png}")
-    print(f"  Dark Framed:           {dark_framed}")
-    print(f"  Light Screenshot:      {light_png}")
-    print(f"  Light Framed:          {light_framed}")
     print(f"  Comparison Composite:  {comp_png}")
 
 

@@ -25,22 +25,18 @@ for its maintainers. It does not claim ownership of WinUtil or its visual assets
   `windows-latest`.
 - Crops DWM shadow padding, adds a two-pixel frame, and generates an anti-aliased
   diagonal light/dark comparison.
-- Uploads the generated images and diagnostics as GitHub Actions artifacts.
+- Opens or updates a pull request when the final comparison image changes.
+- Uploads the final comparison and diagnostics as GitHub Actions artifacts.
 
 ## Generated Files
 
 | File | Purpose |
 | --- | --- |
-| `winutil-dark.png` | Raw WinUtil Tweaks tab in Dark mode. |
-| `winutil-dark-framed.png` | Cropped and framed Dark mode capture. |
-| `winutil-light.png` | Raw WinUtil Tweaks tab in Light mode. |
-| `winutil-light-framed.png` | Cropped and framed Light mode capture. |
 | `winutil-light-dark-comparison.png` | Final diagonal comparison used above. |
-| `capture.log` | Automation output uploaded by GitHub Actions. |
-| `inspect_output.txt` | UI Automation tree collected when the workflow fails. |
 
-The log and inspector output are workflow diagnostics and are not committed to
-the repository.
+Raw Dark and Light captures exist only in a temporary directory while the
+composite is built. `capture.log` and the failure-only `inspect_output.txt` are
+workflow diagnostics; they are uploaded as artifacts but are not committed.
 
 ## Run the Automated Capture Locally
 
@@ -64,8 +60,9 @@ uv run --with pillow --with pywinauto python automate_winutil.py
 ```
 
 The automation maximizes WinUtil, opens Tweaks, captures Dark followed by Light,
-and leaves the application on the Tweaks tab in Light mode. It may move or resize
-the WinUtil window while running.
+generates only `winutil-light-dark-comparison.png`, and leaves the application on
+the Tweaks tab in Light mode. It may move or resize the WinUtil window while
+running.
 
 ## Manual Fallback
 
@@ -82,21 +79,27 @@ between captures.
 ## GitHub Actions Proof of Concept
 
 The [`Generate WinUtil screenshots`](./.github/workflows/generate-screenshots.yml)
-workflow runs on every push and:
+workflow runs on pushes to `master` and:
 
 1. Starts a `windows-latest` hosted runner.
 2. Changes its virtual display from 1024x768 to 1920x1080 and verifies the result.
 3. Downloads and launches the current stable WinUtil script in a hidden PowerShell
    host.
 4. Passes the exact versioned WinUtil WPF window handle to the Python automation.
-5. Generates the raw, framed, and composite images.
-6. Uploads images, `capture.log`, and failure diagnostics for 14 days.
+5. Captures the raw themes in a temporary directory and generates the final
+   composite in the repository.
+6. Opens or updates the `automation/update-winutil-screenshot` pull request when
+   the composite differs from `master`. Its generated commit is authored and
+   committed by `github-actions[bot]`.
+7. Uploads the composite, `capture.log`, and failure diagnostics for 14 days.
 
 The workflow intentionally downloads the current stable WinUtil entry point rather
 than pinning a WinUtil revision. That makes this useful for checking the current UI,
 but means output can change when WinUtil changes even if this repository does not.
-The workflow uploads artifacts only; it does not commit generated images back to
-the repository.
+The workflow never writes directly to `master`. The repository must allow GitHub
+Actions to create pull requests under **Settings > Actions > General > Workflow
+permissions**. If the generated composite is unchanged, no pull request is
+created.
 
 ## Configuration
 
@@ -152,5 +155,5 @@ The inspector opens the theme menu as part of collecting transient controls.
   Tweaks content into one image.
 - Theme detection is a pixel-brightness sanity check designed for the current
   WinUtil layout, not a general-purpose theme classifier.
-- This repository demonstrates artifact generation. Automatically opening a pull
-  request or committing refreshed images is intentionally out of scope.
+- Pull requests require human review and merge; automatic merging is intentionally
+  out of scope for this proof of concept.

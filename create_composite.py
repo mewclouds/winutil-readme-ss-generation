@@ -1,11 +1,10 @@
-"""Create framed theme captures and the diagonal README comparison image."""
+"""Create the framed diagonal README comparison image."""
 
-import os
 import sys
 from PIL import Image, ImageDraw
 
 def process_and_composite(dark_path, light_path, output_comp_path, border_color=(180, 180, 180, 255), border_width=2):
-    """Create framed captures and a diagonal light/dark composite.
+    """Create a framed diagonal light/dark composite.
 
     DWM shadow margins are detected from the Dark image and the same crop is
     applied to both inputs. ``border_width`` is measured in output pixels.
@@ -14,11 +13,11 @@ def process_and_composite(dark_path, light_path, output_comp_path, border_color=
         dark_path: Raw Dark theme PNG.
         light_path: Raw Light theme PNG with dimensions matching ``dark_path``.
         output_comp_path: Destination for the comparison PNG.
-        border_color: RGBA border color applied to every generated image.
+        border_color: RGBA border color applied to the generated image.
         border_width: Border thickness in pixels.
 
     Returns:
-        The generated Dark and Light framed-image paths.
+        The generated comparison-image path.
     """
     img_dark = Image.open(dark_path).convert("RGBA")
     img_light = Image.open(light_path).convert("RGBA")
@@ -86,17 +85,6 @@ def process_and_composite(dark_path, light_path, output_comp_path, border_color=
     dark_framed = apply_frame(dark_crop)
     light_framed = apply_frame(light_crop)
 
-    # Write framed images to derived paths rather than overwriting the originals.
-    # Overwriting would corrupt the shadow-crop scan on any subsequent run because the
-    # grey border pixels (R=G=B=180) satisfy the > 20 brightness threshold.
-    dark_base, dark_ext = os.path.splitext(dark_path)
-    light_base, light_ext = os.path.splitext(light_path)
-    dark_framed_path = f"{dark_base}-framed{dark_ext}"
-    light_framed_path = f"{light_base}-framed{light_ext}"
-    dark_framed.save(dark_framed_path, "PNG")
-    light_framed.save(light_framed_path, "PNG")
-    print(f"Saved framed images: {dark_framed_path} and {light_framed_path} ({W}x{H})")
-
     # Composite along '\' diagonal. The 16%/86% split is chosen so the dividing line
     # clears the WinUtil tab bar on the left and the action buttons on the right,
     # keeping both UI regions fully visible in their respective theme half.
@@ -128,11 +116,10 @@ def process_and_composite(dark_path, light_path, output_comp_path, border_color=
 
     composite.save(output_comp_path, "PNG")
     print(f"Successfully generated final diagonal composite: {output_comp_path} ({W}x{H})")
-    return dark_framed_path, light_framed_path
+    return output_comp_path
 
 if __name__ == "__main__":
     dark = sys.argv[1] if len(sys.argv) > 1 else "winutil-dark.png"
     light = sys.argv[2] if len(sys.argv) > 2 else "winutil-light.png"
     out = sys.argv[3] if len(sys.argv) > 3 else "winutil-light-dark-comparison.png"
-    dark_framed, light_framed = process_and_composite(dark, light, out)
-    print(f"Framed variants: {dark_framed}, {light_framed}")
+    process_and_composite(dark, light, out)
