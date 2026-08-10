@@ -45,6 +45,37 @@ def capture_theme(hwnd, width, height, output_path, expected_dark):
     return image
 
 
+def requested_capture_size():
+    """Return a fixed capture size requested through the environment, if any."""
+    width_value = os.environ.get("WINUTIL_CAPTURE_WIDTH")
+    height_value = os.environ.get("WINUTIL_CAPTURE_HEIGHT")
+    if width_value is None and height_value is None:
+        return None
+    if width_value is None or height_value is None:
+        raise RuntimeError(
+            "WINUTIL_CAPTURE_WIDTH and WINUTIL_CAPTURE_HEIGHT must be set together."
+        )
+
+    try:
+        width = int(width_value)
+        height = int(height_value)
+    except ValueError as exc:
+        raise RuntimeError("WinUtil capture dimensions must be integers.") from exc
+    if width <= 0 or height <= 0:
+        raise RuntimeError("WinUtil capture dimensions must be positive.")
+    return width, height
+
+
+def resize_window(hwnd, width, height):
+    """Resize WinUtil beyond the desktop viewport for a fixed-size capture."""
+    app = Application(backend="win32").connect(handle=hwnd, timeout=CONTROL_TIMEOUT_SECS)
+    win = app.window(handle=hwnd).wrapper_object()
+    win.restore()
+    win.move_window(x=0, y=0, width=width, height=height, repaint=True)
+    time.sleep(0.5)
+    return get_window_capture_size(hwnd)
+
+
 def set_theme(hwnd, theme_name):
     """Open WinUtil's theme popup and select Dark or Light explicitly."""
     if theme_name not in {"Dark", "Light"}:
@@ -137,6 +168,7 @@ def main():
     # terminal titles containing "winutil" cannot become automation targets.
     print("Locating WinUtil window...")
     hwnd, w, h = find_winutil_hwnd()
+    fixed_capture_size = requested_capture_size()
 
     print("Maximizing window...")
     maximize_window(hwnd)
@@ -150,11 +182,31 @@ def main():
     print("Selecting dark mode...")
     set_theme(hwnd, "Dark")
 
+    if fixed_capture_size:
+        print(
+            f"Resizing WinUtil to {fixed_capture_size[0]}x{fixed_capture_size[1]} "
+            "for capture..."
+        )
+        w, h = resize_window(hwnd, *fixed_capture_size)
+
     print("Capturing dark mode...")
     capture_theme(hwnd, w, h, dark_png, expected_dark=True)
 
+    if fixed_capture_size:
+        # Theme controls at the right edge would be outside the hosted runner's
+        # physical desktop while the oversized capture layout is active.
+        print("Restoring visible viewport for theme controls...")
+        maximize_window(hwnd)
+
     print("Selecting light mode...")
     set_theme(hwnd, "Light")
+
+    if fixed_capture_size:
+        print(
+            f"Resizing WinUtil to {fixed_capture_size[0]}x{fixed_capture_size[1]} "
+            "for capture..."
+        )
+        w, h = resize_window(hwnd, *fixed_capture_size)
 
     print("Capturing light mode...")
     capture_theme(hwnd, w, h, light_png, expected_dark=False)

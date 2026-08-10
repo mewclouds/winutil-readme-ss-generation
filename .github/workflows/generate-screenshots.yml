@@ -14,6 +14,9 @@ jobs:
   capture:
     runs-on: windows-latest
     timeout-minutes: 15
+    env:
+      WINUTIL_CAPTURE_WIDTH: "2560"
+      WINUTIL_CAPTURE_HEIGHT: "1440"
 
     defaults:
       run:
@@ -28,6 +31,7 @@ jobs:
         with:
           version: "0.12.0"
           python-version: "3.13"
+          enable-cache: false
 
       - name: Report display environment
         run: |
@@ -59,7 +63,7 @@ jobs:
               "-NoProfile",
               "-ExecutionPolicy", "Bypass",
               "-EncodedCommand", $encodedCommand
-          ) -PassThru
+          ) -WindowStyle Hidden -PassThru
 
           "WINUTIL_HOST_PID=$($process.Id)" |
               Out-File $env:GITHUB_ENV -Append -Encoding utf8
@@ -68,7 +72,7 @@ jobs:
           do {
               Start-Sleep -Seconds 2
               $window = Get-Process |
-                  Where-Object { $_.MainWindowTitle -like "WinUtil*" } |
+                  Where-Object { $_.MainWindowTitle -match '^WinUtil\s+\d' } |
                   Select-Object -First 1
           } until ($window -or (Get-Date) -ge $deadline)
 
