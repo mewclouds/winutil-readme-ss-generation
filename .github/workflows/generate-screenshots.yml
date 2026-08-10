@@ -14,6 +14,7 @@ jobs:
   capture:
     runs-on: windows-latest
     timeout-minutes: 15
+    # WinUtil otherwise inherits the hosted runner's small 1024x768 desktop.
     env:
       WINUTIL_CAPTURE_WIDTH: "1920"
       WINUTIL_CAPTURE_HEIGHT: "1080"
@@ -35,6 +36,8 @@ jobs:
 
       - name: Set display resolution
         run: |
+          # Set-DisplayResolution is provided by Windows PowerShell's ServerCore
+          # module, so this step intentionally calls powershell.exe from pwsh.
           & powershell.exe -NoLogo -NoProfile -Command @'
           Set-DisplayResolution `
               -Width $env:WINUTIL_CAPTURE_WIDTH `
@@ -94,6 +97,7 @@ jobs:
           $bytes = [Text.Encoding]::Unicode.GetBytes($command)
           $encodedCommand = [Convert]::ToBase64String($bytes)
 
+          # Hide the console host while leaving the WPF window available.
           $process = Start-Process powershell.exe -ArgumentList @(
               "-NoLogo",
               "-NoProfile",
@@ -107,6 +111,8 @@ jobs:
           $deadline = (Get-Date).AddSeconds(90)
           do {
               Start-Sleep -Seconds 2
+              # Requiring a version after the title excludes the Cascadia console
+              # host, whose title can be the unversioned string "WinUtil".
               $window = Get-Process |
                   Where-Object { $_.MainWindowTitle -match '^WinUtil\s+\d' } |
                   Select-Object -First 1
@@ -119,6 +125,8 @@ jobs:
           Write-Host "WinUtil HWND: $($window.MainWindowHandle)"
           Write-Host "WinUtil title: $($window.MainWindowTitle)"
 
+          # Passing the exact HWND avoids desktop-enumeration ambiguity on the
+          # hosted runner. Python validates its title and WPF class again.
           "WINUTIL_HWND=$($window.MainWindowHandle)" |
               Out-File $env:GITHUB_ENV -Append -Encoding utf8
 

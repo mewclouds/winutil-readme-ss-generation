@@ -1,3 +1,9 @@
+"""Run the manual fallback for capturing and compositing both WinUtil themes.
+
+Unlike automate_winutil.py, this entry point prompts the user to select each
+theme and does not interact with WinUtil through UI Automation.
+"""
+
 import os
 import sys
 import time

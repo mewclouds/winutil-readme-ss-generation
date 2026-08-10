@@ -1,7 +1,8 @@
-"""
-Quick inspector - lists all visible windows (win32 backend), then dumps the
-UIA control tree of any window whose title contains 'winutil'.
-Output is written to inspect_output.txt.
+"""Write WinUtil window and UI Automation diagnostics to inspect_output.txt.
+
+The inspector uses the same strict WPF window lookup as the capture scripts. It
+also clicks ThemeButton so transient theme-menu controls appear in the dump.
+Run it at the same elevation level as WinUtil.
 """
 import sys
 import time
@@ -12,6 +13,7 @@ from capture_winutil import find_winutil_hwnd
 OUTPUT_FILE = "inspect_output.txt"
 
 def dump_tree(element, depth=0, max_depth=6):
+    """Print a bounded UI Automation subtree for diagnostics."""
     if depth > max_depth:
         return
     indent = "  " * depth

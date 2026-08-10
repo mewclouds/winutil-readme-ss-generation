@@ -1,11 +1,24 @@
+"""Create framed theme captures and the diagonal README comparison image."""
+
 import os
 import sys
 from PIL import Image, ImageDraw
 
 def process_and_composite(dark_path, light_path, output_comp_path, border_color=(180, 180, 180, 255), border_width=2):
-    """
-    Crops DWM shadow margin, blends Light (upper-left) and Dark (lower-right) along a '\\' diagonal,
-    and applies a 2pt white-grey border frame around the output images.
+    """Create framed captures and a diagonal light/dark composite.
+
+    DWM shadow margins are detected from the Dark image and the same crop is
+    applied to both inputs. ``border_width`` is measured in output pixels.
+
+    Args:
+        dark_path: Raw Dark theme PNG.
+        light_path: Raw Light theme PNG with dimensions matching ``dark_path``.
+        output_comp_path: Destination for the comparison PNG.
+        border_color: RGBA border color applied to every generated image.
+        border_width: Border thickness in pixels.
+
+    Returns:
+        The generated Dark and Light framed-image paths.
     """
     img_dark = Image.open(dark_path).convert("RGBA")
     img_light = Image.open(light_path).convert("RGBA")
@@ -62,7 +75,7 @@ def process_and_composite(dark_path, light_path, output_comp_path, border_color=
 
     W, H = dark_crop.size
 
-    # Add 2pt white-grey border frame to individual dark and light images
+    # Add the configured pixel border to individual dark and light images.
     def apply_frame(img):
         framed = img.copy()
         draw = ImageDraw.Draw(framed)

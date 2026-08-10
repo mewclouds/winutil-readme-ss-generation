@@ -1,3 +1,10 @@
+"""Locate and capture the WinUtil WPF window through Win32 APIs.
+
+Local discovery enumerates multiple Windows desktops and requires both a WinUtil
+title and WPF HwndWrapper class. CI may provide WINUTIL_HWND; the supplied handle
+is still validated before it is used.
+"""
+
 import ctypes
 from ctypes import wintypes
 import sys
@@ -139,7 +146,11 @@ gdi32.GetDIBits.argtypes = [
 gdi32.GetDIBits.restype = ctypes.c_int
 
 def find_winutil_hwnd():
-    """Enumerate visible top-level windows to locate the WinUtil GUI HWND."""
+    """Return the validated WinUtil HWND and its physical capture dimensions.
+
+    WINUTIL_HWND takes precedence when present. Otherwise, visible top-level
+    windows are enumerated across the current, input, and Default desktops.
+    """
     explicit_hwnd = os.environ.get("WINUTIL_HWND")
     if explicit_hwnd:
         try:
@@ -279,7 +290,12 @@ def get_window_capture_size(hwnd):
     raise RuntimeError(f"Window {hex(hwnd)} has invalid bounds")
 
 def capture_window(hwnd, width, height, output_path):
-    """Capture specified HWND directly using PrintWindow with PW_RENDERFULLCONTENT."""
+    """Capture an HWND to a validated PNG and return the Pillow image.
+
+    The requested dimensions must describe the current physical window bounds.
+    PrintWindow is retried without PW_RENDERFULLCONTENT when the extended capture
+    mode fails.
+    """
     hdc_win = user32.GetWindowDC(hwnd)
     if not hdc_win:
         raise RuntimeError("Failed GetWindowDC")

@@ -1,11 +1,12 @@
-"""
-Automates the full WinUtil screenshot workflow.
+"""Automate the WinUtil Tweaks screenshot proof of concept.
 
-Finds the running WinUtil window, maximizes it, selects explicit dark and light
-options from ThemeButton, captures both themes, and generates the composite.
+The script selects Tweaks, captures explicit Dark and Light themes, and generates
+the framed and diagonal composite images. WINUTIL_CAPTURE_WIDTH and
+WINUTIL_CAPTURE_HEIGHT request a fixed output size. WINUTIL_HWND is an internal
+CI override used to target an already validated hosted-runner window.
 
-Requires admin elevation for the same reason as capture_winutil.py (PrintWindow
-across a UIPI boundary needs matching privilege level).
+Local use requires elevation matching WinUtil because PrintWindow and UI
+Automation cannot cross a higher-integrity UIPI boundary.
 """
 import os
 import time
