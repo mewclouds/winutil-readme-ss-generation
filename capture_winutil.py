@@ -140,16 +140,39 @@ gdi32.GetDIBits.restype = ctypes.c_int
 
 def find_winutil_hwnd():
     """Enumerate visible top-level windows to locate the WinUtil GUI HWND."""
-    # OpenInputDesktop returns the desktop the user is currently interacting with.
-    # When WinUtil runs elevated under UAC, it lives on a separate window station.
-    # SetThreadDesktop switches this thread to that station so EnumDesktopWindows
-    # can see WinUtil's windows. The fallback to "Default" covers configurations
-    # where OpenInputDesktop fails (such as Remote Desktop or service sessions).
-    hDesk = user32.OpenInputDesktop(0, False, GENERIC_ALL)
-    if not hDesk:
-        hDesk = user32.OpenDesktopW("Default", 0, False, GENERIC_ALL)
-    if hDesk:
-        user32.SetThreadDesktop(hDesk)
+    explicit_hwnd = os.environ.get("WINUTIL_HWND")
+    if explicit_hwnd:
+        try:
+            hwnd = int(explicit_hwnd, 0)
+        except ValueError as exc:
+            raise RuntimeError(
+                f"WINUTIL_HWND is not a valid window handle: {explicit_hwnd!r}"
+            ) from exc
+
+        title_length = user32.GetWindowTextLengthW(hwnd)
+        title_buffer = ctypes.create_unicode_buffer(title_length + 1)
+        user32.GetWindowTextW(hwnd, title_buffer, title_length + 1)
+        title = title_buffer.value
+
+        class_buffer = ctypes.create_unicode_buffer(256)
+        user32.GetClassNameW(hwnd, class_buffer, 256)
+        class_name = class_buffer.value
+
+        if "winutil" not in title.lower() or "hwndwrapper" not in class_name.lower():
+            raise RuntimeError(
+                f"WINUTIL_HWND {hex(hwnd)} is not the WinUtil WPF window: "
+                f"title={title!r}, class={class_name!r}"
+            )
+
+        width, height = get_window_capture_size(hwnd)
+        dpi = user32.GetDpiForWindow(hwnd)
+        scale = dpi / 96.0 if dpi > 0 else 1.0
+        print(
+            f"Located explicit HWND: {hex(hwnd)} | Title: '{title}' | "
+            f"Class: '{class_name}' | DPI: {dpi} ({scale:.2f}x) | "
+            f"Capture Size: {width}x{height}"
+        )
+        return hwnd, width, height
 
     # Keyed by HWND so a window matching both branch conditions is never added twice.
     found_dict = {}
@@ -187,14 +210,24 @@ def find_winutil_hwnd():
         return True
 
     cb = WNDENUMPROC(enum_cb)
-    if hDesk:
+
+    # EnumWindows covers the desktop associated with this process. Explicitly
+    # enumerate the input and Default desktops as well because hosted CI runners
+    # can launch GUI processes on Default while a different desktop is considered
+    # the input desktop. Enumerating a desktop does not require attaching this
+    # thread to it with SetThreadDesktop.
+    user32.EnumWindows(cb, 0)
+    desktop_handles = [
+        user32.OpenInputDesktop(0, False, GENERIC_ALL),
+        user32.OpenDesktopW("Default", 0, False, GENERIC_ALL),
+    ]
+    for desktop_handle in desktop_handles:
+        if not desktop_handle:
+            continue
         try:
-            user32.EnumDesktopWindows(hDesk, cb, 0)
+            user32.EnumDesktopWindows(desktop_handle, cb, 0)
         finally:
-            # Close unconditionally so the handle is released even if the callback raises.
-            user32.CloseDesktop(hDesk)
-    else:
-        user32.EnumWindows(cb, 0)
+            user32.CloseDesktop(desktop_handle)
 
     found_windows = list(found_dict.values())
     if not found_windows:

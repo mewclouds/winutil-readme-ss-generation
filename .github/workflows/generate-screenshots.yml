@@ -28,7 +28,6 @@ jobs:
         with:
           version: "0.12.0"
           python-version: "3.13"
-          enable-cache: true
 
       - name: Report display environment
         run: |
@@ -80,6 +79,9 @@ jobs:
           Write-Host "WinUtil HWND: $($window.MainWindowHandle)"
           Write-Host "WinUtil title: $($window.MainWindowTitle)"
 
+          "WINUTIL_HWND=$($window.MainWindowHandle)" |
+              Out-File $env:GITHUB_ENV -Append -Encoding utf8
+
       - name: Generate screenshots
         run: |
           & uv run `
@@ -122,6 +124,9 @@ jobs:
       - name: Close WinUtil
         if: always()
         run: |
-          Get-Process |
-              Where-Object { $_.MainWindowTitle -like "WinUtil*" } |
-              Stop-Process -Force -ErrorAction SilentlyContinue
+          if ($env:WINUTIL_HOST_PID) {
+              Stop-Process `
+                  -Id ([int]$env:WINUTIL_HOST_PID) `
+                  -Force `
+                  -ErrorAction SilentlyContinue
+          }
