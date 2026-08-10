@@ -33,6 +33,16 @@ jobs:
           python-version: "3.13"
           enable-cache: false
 
+      - name: Set display resolution
+        run: |
+          & powershell.exe -NoLogo -NoProfile -Command @'
+          Set-DisplayResolution -Width 2560 -Height 1440 -Force
+          '@
+
+          if ($LASTEXITCODE -ne 0) {
+              throw "Failed to set the runner display resolution."
+          }
+
       - name: Report display environment
         run: |
           Add-Type @"
